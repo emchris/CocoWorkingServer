@@ -9,12 +9,9 @@ var bodyParser = require('body-parser');
 
 var five =require('johnny-five');
 var board=new five.Board();
+var utente = "";
 
-board.on('ready',function(){
-    var led=new five.Led(13);
-    led.blink(500);});
-
-class Event {
+/*class Event {
 
     constructor(eventId, userId, text, date){
         this.eventId = eventId;
@@ -22,7 +19,7 @@ class Event {
         this.text = text;
         this.date = date;
     }
-}
+}*/
 
 //Password ultils
 //create fucntion to random salt
@@ -127,6 +124,8 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
 
             var db = client.db('cocoworkingdb');
 
+            utente = login;
+
             //check exists email
             db.collection('user').find({'email' : email}).count(function(err, number) {
                 if (number == 0){
@@ -183,30 +182,69 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
             var text = post_data.text;
             var date = post_data.date;
 
-            var dateMillis = new Date(date);
-            console.log(`inserted date: ${dateMillis.toISOString()}`)
-
 
             var eventJson = {
                 'eventId': eventId,
                 'userId': userId,
                 'text': text,
-                'date': dateMillis
-                //'date': `ISODate(${date})00`
+                'date': new Date(date)
             };
 
             var db = client.db('cocoworkingdb');
-            console.log('' + eventId + '');
+            console.log('data salvata', date);
+            console.log('data salvata', new Date(date));
 
-            db.collection('events').insertOne(eventJson, function (error, res) {
+            db.collection('events').insertOne(eventJson, function(err, user){
+                response.json('Evento salvato');
+                console.log('Evento salvato');
+            })
+
+            //let evento = new Event(eventJson.eventId, eventJson.userId, eventJson.text, eventJson.date);
+            //console.log(Event);
+            //console.log('' + evento.text + '');
+        });
+
+
+
+        app.post('/checkFreeDate', (request, response, next)=> {
+            var date = request.body.date;
+            console.log(date)
+            var newdate = new Date(date)
+
+            var db = client.db('cocoworkingdb');
+
+            var dataOccupataJson = {
+                'message' : 'Orario occupato',
+                'flag' : 0
+            }
+
+            var dataDisponibileJson = {
+                'message' : 'Orario disponibile',
+                'flag' : 1
+            }
+
+            var dateJson = {
+                'date': new Date(date)
+            };
+
+            db.collection('events').find({'date' : newdate}).count(function(err, number) {
+                if (number != 0){
+                    response.json(dataOccupataJson);
+                    console.log('Orario occupato');
+                    console.log(number);
+                    console.log(new Date(date));
+                }
+                else {
+                    response.json(dataDisponibileJson);
+                    console.log('Orario disponibile');
+                    console.log(number);
+                    console.log(new Date(date));
+                }
                 //let evento = new Event(eventJson.eventId, eventJson.userId, eventJson.text, eventJson.date);
                 //console.log(Event);
                 //console.log('' + evento.text + '');
-                response.json('Event updated');
-                console.log('Event updated');
-
             });
-        })
+        });
 
         app.post('/takeEvents', (request, response, next)=> {
             var post_data = request.body;
@@ -238,32 +276,26 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
                 //console.log('Event updated');
 
             });
-        })
+        });
 
         app.post('/deleteEvents', (request, response, next)=> {
             var post_data = request.body;
 
             var eventId = post_data.eventId;
-            var userId = post_data.userId;
-            var text = post_data.text;
-            var date = post_data.date;
 
 
-            var deleteJson = {
-                'eventId': eventId,
-                'userId': userId,
-                'text': text,
-                'date': date
-            };
+            var deleteJson = {'eventId': eventId};
 
             var db = client.db('cocoworkingdb');
             console.log('' + eventId + '');
+            console.log(deleteJson);
 
             db.collection('events').deleteOne(deleteJson, function (err,res) {
 
                 //let evento = new Event(eventJson.eventId, eventJson.userId, eventJson.text, eventJson.date);
                 //console.log(Event);
                 //res.forEach(e => console.log(e));
+                if (err) throw err;
                 console.log("Event deleted");
                 response.json("Event deleted");
                 //res.forEach(e => response.json(e));
@@ -272,45 +304,64 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
             });
         })
 
-        Date.prototype.addHours = function(h) {
-            this.setTime(this.getTime() + (h*60*60*1000));
+        Date.prototype.addSeconds = function(s) {
+            this.setTime(this.getTime() + (s*1000));
             return this;
         }
 
         //Check event dates in database
 
+        board.on('ready',function(){
+            var greenLed = new five.Led(9);
+            var yellowLed = new five.Led(11);
+            var redLed = new five.Led(13);
+
         function checkDate(){
-            var currentDate = new Date();
-            const fullDate = currentDate.toISOString();
             var db = client.db('cocoworkingdb');
-            const today = fullDate.slice(0,10);
-            console.log(today);
-            //currentDate.toISOString()
-            regex = RegExp(String.raw`^${today}`);
-            var query = {date: regex };
-            console.log(`${currentDate.addHours(-1000).toDateString()} è diverso di ${new Date(2020,8,16)}`)
-            //const eventsRightNow = db.collection('events').find({"date": {"$gte": currentDate.addHours(-1000), "$lt": currentDate.addHours(2000)}}).toArray(function (err,result){
-            const eventsRightNow = db.collection('events').find({"date": {"$gte": (new Date()).addHours(-1000), "$lt": (new Date()).addHours(1000)}}).toArray(function (err,result){
-                if(err) throw err;
-                else{
-                    console.log("voila le probleeeme");
-                    console.log(result);
+            db.collection('events').find({"date": {"$gte": (new Date()).addSeconds(-15), "$lt": (new Date())}}).count(function (err,number){
+                 console.log(number);
+                 if(number != 0){
+                     console.log('quelque chose');
+                     greenLed.on();
+                     yellowLed.stop().off();
+                     redLed.off();
                 }
+                else {
+                     greenLed.off();
+                     yellowLed.stop().off();
+                     redLed.off();
+                 }
                 db.close;
             });
-            //console.log(`Voilà le problème: ${eventsRightNow.toString()}`)
-            /*db.collection('events').find(query).toArray(function (err,result){
-                if(err) throw err;
-                else{
-                    //console.log(result);
+
+           db.collection('events').find({"date": {"$gte": (new Date().addSeconds(-30)), "$lt": (new Date().addSeconds(-15))}}).count(function (err,number){
+                console.log(number);
+                if(number != 0){
+                    console.log('quelque chose attention');
+                    greenLed.off();
+                    yellowLed.blink(500);
+                    redLed.off();
                 }
+                else {}
                 db.close;
-            });*/
-            //console.log(eventsRightNow.toString())
+            });
+
+            db.collection('events').find({"date": {"$gte": (new Date().addSeconds(-30)), "$lt": (new Date())}}).count(function (err,number){
+                console.log(number);
+                if(number == 0){
+                    console.log('rien');
+                    greenLed.off();
+                    yellowLed.stop().off();
+                    redLed.on();
+                }
+                else {}
+                db.close;
+            });
+
 
         }
-
-        setInterval(checkDate, 5000);
+            setInterval(checkDate, 5000);
+        })
 
         //Start Web Server
         app.listen(3000, ()=> {
