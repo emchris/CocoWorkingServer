@@ -9,7 +9,7 @@ var bodyParser = require('body-parser');
 
 var five =require('johnny-five');
 var board=new five.Board();
-var utente = "";
+var loggedUser = "00000";
 
 /*class Event {
 
@@ -124,8 +124,6 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
 
             var db = client.db('cocoworkingdb');
 
-            utente = login;
-
             //check exists email
             db.collection('user').find({'email' : email}).count(function(err, number) {
                 if (number == 0){
@@ -154,6 +152,7 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
                                 'flag': 1
                             }
                             response.json(responseJson);
+                            loggedUser = user.name;
                             console.log('Login success');
                         }
                         else {
@@ -362,6 +361,41 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
         }
             setInterval(checkDate, 5000);
         })
+
+        // Controllo per l'invio di una notifica a l'utente quando una riunione sta per iniziare
+
+        function checkEvents(){
+            var db = client.db('cocoworkingdb');
+            console.log(loggedUser);
+            db.collection('events').
+            findOne(
+                {"date": {"$gte": (new Date()).addSeconds(5), "$lt": (new Date()).addSeconds(15)}},
+                { projection: {"_id": 0, "userId": 1} },
+                function(err, result){
+                    if (err) throw err;
+                    console.log(result);
+                    if (result != null) {
+                        if (result.userId == loggedUser) {
+                            console.log('Hai una riunione !!!');
+                        } else {
+                            console.log('Nessuna riunone');
+                        }
+                    }
+                    /*}
+                    console.log(result.userId);
+                    //obj = JSON.parse(result);
+                    //console.log(`l'utente è: ${obj.userId}`);
+                if(result == loggedUser){
+                    console.log('Hai una riunione !!!');
+                }
+                else {
+                    console.log('Nessuna riunone');
+                }*/
+                db.close;
+            });
+        }
+
+        setInterval(checkEvents,10000);
 
         //Start Web Server
         app.listen(3000, ()=> {
