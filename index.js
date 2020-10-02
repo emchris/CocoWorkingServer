@@ -43,6 +43,14 @@ function saltHashPassword(userPassword){
     return passwordData;
 }
 
+function checkPassword(str)
+{
+    // at least one number, one lowercase and one uppercase letter
+    // at least six characters
+    var re = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
+    return re.test(str);
+}
+
 function checkHashPassword(userPassword, salt){
     var passwordData = sha512(userPassword, salt);
     return passwordData;
@@ -68,7 +76,7 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
     if(err)
         console.log('Unable to connect to the mongoDB server.Error', err);
     else{
-
+/*
         //Register
 
         app.post('/register', (request, response, next)=> {
@@ -114,6 +122,58 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
                 }
             })
 
+        });*/
+        //Register
+
+        app.post('/register', (request, response, next)=> {
+            var post_data = request.body;
+
+            if(checkPassword(post_data.password)){
+                var plaint_password = post_data.password;
+                var hash_data = saltHashPassword(plaint_password);
+                var password = hash_data.passwordHash; // Save password hash
+                var salt = hash_data.salt; //Save salt
+            }
+
+
+            var name = post_data.name;
+            var email = post_data.email;
+
+            var insertJson = {
+                'email': email,
+                'password': password,
+                'salt': salt,
+                'name': name
+            };
+
+            var db = client.db('cocoworkingdb');
+
+            //check exists email
+            db.collection('user').find({'email' : email}).count(function(err, number) {
+                if (number != 0){
+                    response.json('Email già utilizzata');
+                    console.log('Email già utilizzata');
+                }
+                else if(validateEmail(email) == false){
+                    response.json('Email non valida');
+                    console.log('Email non è valida');
+                }
+                else if(db.collection('user').find({'name' : name}) == true) {
+                    response.json('Nome utente non disponibile');
+                    console.log('Nome utente non disponibile');
+                }
+                else if(checkPassword(post_data.password) == false){
+                    response.json('Password non valida');
+                    console.log('Password non   valida');
+                }
+                else {
+                    db.collection('user').insertOne(insertJson,function(error, res){
+                        response.json('Registrazione avvenuta');
+                        console.log('Registrazione avvenuta');
+                    })
+                }
+            })
+
         });
 
         app.post('/login', (request, response, next)=> {
@@ -131,12 +191,12 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
                         '_id': "",
                         'email' : "",
                         'name': "",
-                        'message': 'Email not exists',
+                        'message': 'Email inesistente',
                         'flag': 0
                     }
                     response.json(responseJson);
                     console.log('' + responseJson.flag + '');
-                    console.log('Email not exists');
+                    console.log('Email inesistente');
                 }
                 else {
                     db.collection('user').findOne({'email' : email}, function(err, user){
@@ -148,23 +208,23 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
                                 '_id': user._id,
                                 'email' : user.email,
                                 'name': user.name,
-                                'message': 'Login success',
+                                'message': 'Login riuscito',
                                 'flag': 1
                             }
                             response.json(responseJson);
                             loggedUser = user.name;
-                            console.log('Login success');
+                            console.log('Login riuscito');
                         }
                         else {
                             var responseJson = {
                                 '_id': "",
                                 'email' : "",
                                 'name': "",
-                                'message': 'Wrong password',
+                                'message': 'Password sbagliata',
                                 'flag': 0
                             }
                             response.json(responseJson);
-                            console.log('Wrong password');
+                            console.log('Password sbagliata');
                         }
                     })
                 }
@@ -226,7 +286,7 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
                 'date': new Date(date)
             };
 
-            db.collection('events').find({'date' : newdate}).count(function(err, number) {
+            db.collection('events').find({"date": {"$gte": (new Date(date).addSeconds(-3599)), "$lt": (new Date(date).addSeconds(3599))}}).count(function(err, number) {
                 if (number != 0){
                     response.json(dataOccupataJson);
                     console.log('Orario occupato');
@@ -295,8 +355,8 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
                 //console.log(Event);
                 //res.forEach(e => console.log(e));
                 if (err) throw err;
-                console.log("Event deleted");
-                response.json("Event deleted");
+                console.log("Evento eliminato");
+                response.json("Evento eliminato");
                 //res.forEach(e => response.json(e));
                 //console.log('Event updated');
 
@@ -310,9 +370,9 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
 
         //Check event dates in database
 
-        board.on('ready',function(){
-            var greenLed = new five.Led(9);
-            var yellowLed = new five.Led(11);
+        bloard.on('ready',function(){
+                var greenLed = new five.Led(9);
+                var yelowLed = new five.Led(11);
             var redLed = new five.Led(13);
 
         function checkDate(){
@@ -363,39 +423,30 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, client){
         })
 
         // Controllo per l'invio di una notifica a l'utente quando una riunione sta per iniziare
-
+/*
         function checkEvents(){
             var db = client.db('cocoworkingdb');
             console.log(loggedUser);
             db.collection('events').
             findOne(
-                {"date": {"$gte": (new Date()).addSeconds(5), "$lt": (new Date()).addSeconds(15)}},
+                {"date": {"$gte": (new Date()).addSeconds(5), "$lt": (new Date()).addSeconds(60)}},
                 { projection: {"_id": 0, "userId": 1} },
                 function(err, result){
                     if (err) throw err;
                     console.log(result);
                     if (result != null) {
                         if (result.userId == loggedUser) {
-                            console.log('Hai una riunione !!!');
+                            console.log('//////Hai una riunione !!!///////');
                         } else {
                             console.log('Nessuna riunone');
                         }
                     }
-                    /*}
-                    console.log(result.userId);
-                    //obj = JSON.parse(result);
-                    //console.log(`l'utente è: ${obj.userId}`);
-                if(result == loggedUser){
-                    console.log('Hai una riunione !!!');
-                }
-                else {
-                    console.log('Nessuna riunone');
-                }*/
+
                 db.close;
             });
         }
 
-        setInterval(checkEvents,10000);
+        setInterval(checkEvents,10000);*/
 
         //Start Web Server
         app.listen(3000, ()=> {
